@@ -320,7 +320,6 @@ createCheckbox(MainR, "Mostrar FOV", "showFov")
 createSlider(MainR, "Tamanho do FOV", 10, 500, "fov")
 createSlider(MainR, "Aimbot Smoothness", 1, 10, "aimSmooth")
 
--- Aba Utils: Sliders de 0 até 500
 createCheckbox(UtilsL, "Enable Walk Speed", "wsEnabled")
 createSlider(UtilsL, "Walk Speed", 0, 500, "walkSpeed")
 createCheckbox(UtilsL, "Enable Jump Power", "jpEnabled")
@@ -548,6 +547,7 @@ RunService.Stepped:Connect(function()
     if char then
         local hum = char:FindFirstChild("Humanoid")
         if hum then
+            -- Só modifica as propriedades se estiver explicitamente ativado
             if settings.wsEnabled then 
                 hum.WalkSpeed = settings.walkSpeed 
             end
@@ -555,9 +555,6 @@ RunService.Stepped:Connect(function()
             if settings.jpEnabled then 
                 hum.UseJumpPower = true
                 hum.JumpPower = settings.jumpPower 
-            else
-                hum.UseJumpPower = false
-                hum.JumpPower = 50      
             end
         end
         
