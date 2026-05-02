@@ -268,19 +268,20 @@ local function createSlider(parent, text, min, max, key)
 end
 
 local function createSelector(parent, title)
-    local F = Instance.new("Frame", parent) F.Size = UDim2.new(1, 0, 0, 35) F.BackgroundTransparency = 1
+    local F = Instance.new("Frame", parent)
+    F.Size = UDim2.new(1, 0, 0, 35) F.BackgroundTransparency = 1
     local L = Instance.new("TextLabel", F) L.Size = UDim2.new(1, 0, 0, 12) L.Text = title L.TextColor3 = COLORS.SubText L.Font = Enum.Font.Gotham L.TextSize = 10 L.TextXAlignment = Enum.TextXAlignment.Left L.BackgroundTransparency = 1
     local SelectorBg = Instance.new("Frame", F) SelectorBg.Size = UDim2.new(1, 0, 0, 20) SelectorBg.Position = UDim2.new(0, 0, 1, -20) SelectorBg.BackgroundColor3 = COLORS.Bg Instance.new("UICorner", SelectorBg).CornerRadius = UDim.new(0, 4) Instance.new("UIStroke", SelectorBg).Color = COLORS.Border
 
     local parts = {"Head", "HumanoidRootPart"}
     local displayNames = {"HEAD", "BODY"}
-    
+    local currentIndex = 1
+
     local LeftBtn = Instance.new("TextButton", SelectorBg) LeftBtn.Size = UDim2.new(0, 20, 1, 0) LeftBtn.BackgroundTransparency = 1 LeftBtn.Text = "<" LeftBtn.TextColor3 = COLORS.Gold LeftBtn.Font = Enum.Font.GothamBold
     local RightBtn = Instance.new("TextButton", SelectorBg) RightBtn.Size = UDim2.new(0, 20, 1, 0) RightBtn.Position = UDim2.new(1, -20, 0, 0) RightBtn.BackgroundTransparency = 1 RightBtn.Text = ">" RightBtn.TextColor3 = COLORS.Gold RightBtn.Font = Enum.Font.GothamBold
     local ValueTxt = Instance.new("TextLabel", SelectorBg) ValueTxt.Size = UDim2.new(1, -40, 1, 0) ValueTxt.Position = UDim2.new(0, 20, 0, 0) ValueTxt.Text = "HEAD" ValueTxt.TextColor3 = COLORS.Text ValueTxt.Font = Enum.Font.GothamBold ValueTxt.TextSize = 10 ValueTxt.BackgroundTransparency = 1
 
     local function updatePart(step)
-        local currentIndex = (settings.aimPart == "Head") and 1 or 2
         currentIndex = currentIndex + step
         if currentIndex > #parts then currentIndex = 1 elseif currentIndex < 1 then currentIndex = #parts end
         settings.aimPart = parts[currentIndex]
@@ -304,7 +305,6 @@ end
 -- ==========================================
 -- POPULAR AS ABAS
 -- ==========================================
--- Aba Main (Combat & Visuals)
 createCheckbox(MainL, "Aimbot Rage", "aimbotRage")
 createCheckbox(MainL, "Silent Aim (Arsenal)", "silentAim")
 createCheckbox(MainL, "No Recoil", "noRecoil")
@@ -321,7 +321,6 @@ createCheckbox(MainR, "Mostrar FOV", "showFov")
 createSlider(MainR, "Tamanho do FOV", 10, 500, "fov")
 createSlider(MainR, "Aimbot Smoothness", 1, 10, "aimSmooth")
 
--- Aba Utils (Movement & Exploits)
 createCheckbox(UtilsL, "Enable Walk Speed", "wsEnabled")
 createSlider(UtilsL, "Walk Speed", 16, 200, "walkSpeed")
 createCheckbox(UtilsL, "Enable Jump Power", "jpEnabled")
@@ -331,7 +330,6 @@ createCheckbox(UtilsR, "Enable Fly", "fly")
 createSlider(UtilsR, "Fly Speed", 10, 300, "flySpeed")
 createCheckbox(UtilsR, "Noclip", "noclip")
 
--- LÓGICA DO X-RAY
 local xrayCache = {}
 local function applyXray(enable)
     if enable then
@@ -348,7 +346,7 @@ local function applyXray(enable)
         xrayCache = {}
     end
 end
-createCheckbox(UtilsR, "X-Ray (Wallhack)", "xray", applyXray)
+createCheckbox(UtilsR, "X-Ray", "xray", applyXray)
 
 -- CONFIG SAVER (Salvar/Carregar)
 local configFileName = "AsempleUltimate_Config.json"
@@ -363,7 +361,6 @@ createButton(UtilsR, "📂 Load Settings", function()
         local data = readfile(configFileName)
         local decoded = HttpService:JSONDecode(data)
         for k, v in pairs(decoded) do settings[k] = v end
-        -- Atualizar UI visualmente
         for k, ui in pairs(uiElements) do if ui.Update then ui.Update() end end
         applyXray(settings.xray)
     end
@@ -378,16 +375,22 @@ RunService.RenderStepped:Connect(function()
     
     if settings.showFov then FOVCircle.Visible = true FOVCircle.Position = UDim2.new(0, mousePos.X, 0, mousePos.Y) else FOVCircle.Visible = false end
 
-    -- Spinbot Visual 
-    if settings.spinbot and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+    -- Spinbot 
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
         local root = player.Character.HumanoidRootPart
-        root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(settings.spinSpeed), 0)
+        local hum = player.Character.Humanoid
+
+        if settings.spinbot then
+            hum.AutoRotate = false
+            root.CFrame = root.CFrame * CFrame.Angles(0, math.rad(settings.spinSpeed), 0)
+        else
+            hum.AutoRotate = true
+        end
     end
 
     if settings.aimbotRage or settings.silentAim then
         local target = nil
         local closest3DDist = 250
-        
         local myChar = player.Character
         local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChild("Head"))
         
@@ -483,7 +486,6 @@ RunService.RenderStepped:Connect(function()
                     local h = math.abs(bPos.Y - tPos.Y)
                     local w = h / 1.8
                     
-                    -- Render ESP Box
                     if settings.esp then
                         espCache[plr].B.Size = UDim2.new(0, w, 0, h)
                         espCache[plr].B.Position = UDim2.new(0, tPos.X - w/2, 0, tPos.Y)
@@ -511,7 +513,6 @@ RunService.RenderStepped:Connect(function()
                         espCache[plr].HBg.Visible = false
                     end
 
-                    -- Render Tracers (Linhas)
                     if settings.espTracers then
                         local screenBottom = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y)
                         local targetFoot = Vector2.new(bPos.X, bPos.Y)
@@ -644,7 +645,6 @@ local function toggleMenu()
     isTweening = true
     
     if menuActive then
-        -- Animação Suave para Fechar
         local t = TweenService:Create(Canvas, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {GroupTransparency = 1})
         local sizeT = TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Size = UDim2.new(0, 500, 0, 0)})
         
@@ -655,7 +655,6 @@ local function toggleMenu()
         MainFrame.Visible = false
         menuActive = false
     else
-        -- Animação Suave para Abrir
         MainFrame.Visible = true
         Canvas.GroupTransparency = 1
         
