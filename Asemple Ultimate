@@ -45,7 +45,7 @@ local settings = {
     wsEnabled = false,
     walkSpeed = 16,
     jpEnabled = false,
-    jumpPower = 50,
+    jumpPower = 16,
     xray = false
 }
 
@@ -268,8 +268,7 @@ local function createSlider(parent, text, min, max, key)
 end
 
 local function createSelector(parent, title)
-    local F = Instance.new("Frame", parent)
-    F.Size = UDim2.new(1, 0, 0, 35) F.BackgroundTransparency = 1
+    local F = Instance.new("Frame", parent) F.Size = UDim2.new(1, 0, 0, 35) F.BackgroundTransparency = 1
     local L = Instance.new("TextLabel", F) L.Size = UDim2.new(1, 0, 0, 12) L.Text = title L.TextColor3 = COLORS.SubText L.Font = Enum.Font.Gotham L.TextSize = 10 L.TextXAlignment = Enum.TextXAlignment.Left L.BackgroundTransparency = 1
     local SelectorBg = Instance.new("Frame", F) SelectorBg.Size = UDim2.new(1, 0, 0, 20) SelectorBg.Position = UDim2.new(0, 0, 1, -20) SelectorBg.BackgroundColor3 = COLORS.Bg Instance.new("UICorner", SelectorBg).CornerRadius = UDim.new(0, 4) Instance.new("UIStroke", SelectorBg).Color = COLORS.Border
 
@@ -321,10 +320,11 @@ createCheckbox(MainR, "Mostrar FOV", "showFov")
 createSlider(MainR, "Tamanho do FOV", 10, 500, "fov")
 createSlider(MainR, "Aimbot Smoothness", 1, 10, "aimSmooth")
 
+-- Aba Utils: Sliders de 0 até 500
 createCheckbox(UtilsL, "Enable Walk Speed", "wsEnabled")
-createSlider(UtilsL, "Walk Speed", 16, 200, "walkSpeed")
+createSlider(UtilsL, "Walk Speed", 0, 500, "walkSpeed")
 createCheckbox(UtilsL, "Enable Jump Power", "jpEnabled")
-createSlider(UtilsL, "Jump Power", 50, 300, "jumpPower")
+createSlider(UtilsL, "Jump Power", 0, 500, "jumpPower")
 
 createCheckbox(UtilsR, "Enable Fly", "fly")
 createSlider(UtilsR, "Fly Speed", 10, 300, "flySpeed")
@@ -548,8 +548,17 @@ RunService.Stepped:Connect(function()
     if char then
         local hum = char:FindFirstChild("Humanoid")
         if hum then
-            if settings.wsEnabled then hum.WalkSpeed = settings.walkSpeed end
-            if settings.jpEnabled then hum.UseJumpPower = true; hum.JumpPower = settings.jumpPower end
+            if settings.wsEnabled then 
+                hum.WalkSpeed = settings.walkSpeed 
+            end
+            
+            if settings.jpEnabled then 
+                hum.UseJumpPower = true
+                hum.JumpPower = settings.jumpPower 
+            else
+                hum.UseJumpPower = false
+                hum.JumpPower = 50      
+            end
         end
         
         if settings.noclip then
@@ -635,7 +644,7 @@ UserInputService.InputChanged:Connect(function(i) if d and i.UserInputType == En
 end end)
 
 -- ==========================================
--- SISTEMA DE FECHO/MINIMIZAR SUAVE (G)
+-- SISTEMA DE FECHO/MINIMIZAR (G)
 -- ==========================================
 local menuActive = true
 local isTweening = false
@@ -679,7 +688,7 @@ end)
 selectTab("Main")
 
 -- ==========================================
--- ANIMAÇÃO DE INTRO (Painel Vazio -> Texto -> Menu)
+-- ANIMAÇÃO DE INTRO
 -- ==========================================
 Header.Visible = false
 Body.Visible = false
