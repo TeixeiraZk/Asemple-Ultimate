@@ -17,7 +17,8 @@ local COLORS = {
     SubText = Color3.fromRGB(160, 160, 160),
     Border = Color3.fromRGB(30, 30, 30),
     Enemy = Color3.fromRGB(255, 50, 50),
-    Ally = Color3.fromRGB(50, 150, 255)
+    Ally = Color3.fromRGB(50, 150, 255),
+    White = Color3.fromRGB(255, 255, 255)
 }
 
 -- Configurações Globais ULTIMATE
@@ -26,6 +27,7 @@ local settings = {
     aimbotRage = false,
     silentAim = false,
     noRecoil = false,
+    noShake = false,
     spinbot = false,
     spinSpeed = 50,
     maxDistance = 200, 
@@ -37,6 +39,7 @@ local settings = {
     esp = false,
     espHealth = false,
     espTracers = false,
+    espSkeleton = false,
     teamCheck = false,
     -- Utils
     fly = false,
@@ -46,7 +49,8 @@ local settings = {
     walkSpeed = 16,
     jpEnabled = false,
     jumpPower = 16,
-    xray = false
+    xray = false,
+    esticarTela = false -- Nova configuração para persistência
 }
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -84,7 +88,6 @@ MainFrame.Parent = ScreenGui
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 6)
 Instance.new("UIStroke", MainFrame).Color = COLORS.Border
 
--- CanvasGroup para permitir desvanecimento (fade suave) ao minimizar
 local Canvas = Instance.new("CanvasGroup", MainFrame)
 Canvas.Size = UDim2.new(1, 0, 1, 0)
 Canvas.BackgroundTransparency = 1
@@ -307,14 +310,16 @@ end
 createCheckbox(MainL, "Aimbot Rage", "aimbotRage")
 createCheckbox(MainL, "Silent Aim (Arsenal)", "silentAim")
 createCheckbox(MainL, "No Recoil", "noRecoil")
+createCheckbox(MainL, "No Shake", "noShake")
 createSlider(MainL, "Max Distance", 10, 200, "maxDistance")
 createSelector(MainL, "Alvo do Aimbot")
 createCheckbox(MainL, "Spinbot", "spinbot")
-createSlider(MainL, "Spin Speed", 10, 100, "spinSpeed")
+createSlider(MainL, "Spin Speed", 1, 100, "spinSpeed") -- Slider visível e operacional
 
 createCheckbox(MainR, "ESP Box", "esp")
 createCheckbox(MainR, "ESP Health Bar", "espHealth")
 createCheckbox(MainR, "ESP Tracers", "espTracers")
+createCheckbox(MainR, "ESP Skeleton", "espSkeleton")
 createCheckbox(MainR, "Team Check", "teamCheck")
 createCheckbox(MainR, "Mostrar FOV", "showFov")
 createSlider(MainR, "Tamanho do FOV", 10, 500, "fov")
@@ -328,6 +333,15 @@ createSlider(UtilsL, "Jump Power", 0, 500, "jumpPower")
 createCheckbox(UtilsR, "Enable Fly", "fly")
 createSlider(UtilsR, "Fly Speed", 10, 300, "flySpeed")
 createCheckbox(UtilsR, "Noclip", "noclip")
+
+-- Botão de Persistência em Utils
+createCheckbox(UtilsR, "Esticar Tela", "esticarTela", function(enabled)
+    if enabled then
+        camera.FieldOfView = 120
+    else
+        camera.FieldOfView = 70
+    end
+end)
 
 local xrayCache = {}
 local function applyXray(enable)
@@ -347,7 +361,7 @@ local function applyXray(enable)
 end
 createCheckbox(UtilsR, "X-Ray", "xray", applyXray)
 
--- CONFIG SAVER (Salvar/Carregar)
+-- CONFIG SAVER
 local configFileName = "AsempleUltimate_Config.json"
 createButton(UtilsR, "💾 Save Settings", function()
     if writefile then
@@ -367,14 +381,30 @@ end)
 
 
 -- ==========================================
--- LÓGICA CORE: AIMBOT RAGE & SILENT AIM & SPINBOT
+-- LÓGICA CORE: COMBAT, SPINBOT, ESTICAR TELA
 -- ==========================================
+
+-- Garante que o FOV permaneça esticado mesmo mudando de mapa ou renascendo
+camera:GetPropertyChangedSignal("FieldOfView"):Connect(function()
+    if settings.esticarTela and camera.FieldOfView ~= 120 then
+        camera.FieldOfView = 120
+    end
+end)
+
 RunService.RenderStepped:Connect(function()
     local mousePos = UserInputService:GetMouseLocation()
     
     if settings.showFov then FOVCircle.Visible = true FOVCircle.Position = UDim2.new(0, mousePos.X, 0, mousePos.Y) else FOVCircle.Visible = false end
 
-    -- Spinbot 
+    -- Lógica No Shake
+    if settings.noShake and player.Character then
+        local hum = player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.CameraOffset = hum.CameraOffset * 0.5
+        end
+    end
+
+    -- Spinbot utilizando a velocidade da barra
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Humanoid") then
         local root = player.Character.HumanoidRootPart
         local hum = player.Character.Humanoid
@@ -435,23 +465,35 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- LOGICA: ESP ULTIMATE (BOX, HEALTH, TRACERS)
+-- LOGICA: ESP ULTIMATE
 -- ==========================================
 local espCache = {}
 
 local function clearESP(plr)
     if espCache[plr] then
-        espCache[plr].B:Destroy() espCache[plr].T:Destroy()
+        if espCache[plr].B then espCache[plr].B:Destroy() end
+        if espCache[plr].T then espCache[plr].T:Destroy() end
         if espCache[plr].HBg then espCache[plr].HBg:Destroy() end
         if espCache[plr].Line then espCache[plr].Line:Destroy() end
+        if espCache[plr].Skel then
+            for _, line in ipairs(espCache[plr].Skel) do line:Destroy() end
+        end
         espCache[plr] = nil
     end
 end
 
 Players.PlayerRemoving:Connect(clearESP)
 
+local function drawSkelLine()
+    local l = Instance.new("Frame", ScreenGui)
+    l.BorderSizePixel = 0
+    l.ZIndex = 0
+    l.AnchorPoint = Vector2.new(0.5, 0.5)
+    return l
+end
+
 RunService.RenderStepped:Connect(function()
-    if not settings.esp and not settings.espTracers then 
+    if not settings.esp and not settings.espTracers and not settings.espSkeleton then 
         for plr, _ in pairs(espCache) do clearESP(plr) end 
         return 
     end
@@ -464,19 +506,22 @@ RunService.RenderStepped:Connect(function()
             local rootPart = char and char:FindFirstChild("HumanoidRootPart")
             
             if char and hum and hum.Health > 0 and head and rootPart then
-                local tPos, tOn = camera:WorldToViewportPoint(head.Position + Vector3.new(0,0.5,0))
-                local bPos, bOn = camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0,3,0))
+                local tPos, tOn = camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+                local bPos, bOn = camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
                 
                 if tOn or bOn then
                     if not espCache[plr] then
                         local b = Instance.new("Frame", ScreenGui) b.BackgroundTransparency = 1
                         Instance.new("UIStroke", b).Thickness = 1.2
-                        local t = Instance.new("TextLabel", ScreenGui) t.BackgroundTransparency = 1 t.Font = Enum.Font.GothamBold t.TextSize = 10 t.TextColor3 = Color3.new(1,1,1)
+                        local t = Instance.new("TextLabel", ScreenGui) t.BackgroundTransparency = 1 t.Font = Enum.Font.GothamBold t.TextSize = 10 t.TextColor3 = Color3.new(1, 1, 1)
                         local hBg = Instance.new("Frame", ScreenGui) hBg.BorderSizePixel = 0 hBg.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
                         local hFill = Instance.new("Frame", hBg) hFill.BorderSizePixel = 0
                         local line = Instance.new("Frame", ScreenGui) line.BorderSizePixel = 0 line.AnchorPoint = Vector2.new(0.5, 0.5) line.ZIndex = 0
                         
-                        espCache[plr] = {B = b, T = t, HBg = hBg, HFill = hFill, Line = line}
+                        -- Linhas do Skeleton
+                        local skel = {drawSkelLine(), drawSkelLine(), drawSkelLine(), drawSkelLine(), drawSkelLine()}
+                        
+                        espCache[plr] = {B = b, T = t, HBg = hBg, HFill = hFill, Line = line, Skel = skel}
                     end
                     
                     local color = COLORS.Gold
@@ -485,21 +530,22 @@ RunService.RenderStepped:Connect(function()
                     local h = math.abs(bPos.Y - tPos.Y)
                     local w = h / 1.8
                     
+                    -- Box e Texto
                     if settings.esp then
                         espCache[plr].B.Size = UDim2.new(0, w, 0, h)
-                        espCache[plr].B.Position = UDim2.new(0, tPos.X - w/2, 0, tPos.Y)
+                        espCache[plr].B.Position = UDim2.new(0, tPos.X - w / 2, 0, tPos.Y)
                         espCache[plr].B.UIStroke.Color = color
                         espCache[plr].B.Visible = true
                         
-                        espCache[plr].T.Text = plr.DisplayName .. " ["..math.floor((camera.CFrame.p - rootPart.Position).Magnitude).."m]"
-                        espCache[plr].T.Position = UDim2.new(0, tPos.X - w/2, 0, tPos.Y - 15)
+                        espCache[plr].T.Text = plr.DisplayName .. " [" .. math.floor((camera.CFrame.p - rootPart.Position).Magnitude) .. "m]"
+                        espCache[plr].T.Position = UDim2.new(0, tPos.X - w / 2, 0, tPos.Y - 15)
                         espCache[plr].T.Size = UDim2.new(0, w, 0, 15)
                         espCache[plr].T.TextColor3 = color
                         espCache[plr].T.Visible = true
                         
                         if settings.espHealth then
                             local hpPct = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
-                            espCache[plr].HBg.Size = UDim2.new(0, 3, 0, h) espCache[plr].HBg.Position = UDim2.new(0, (tPos.X - w/2) - 6, 0, tPos.Y)
+                            espCache[plr].HBg.Size = UDim2.new(0, 3, 0, h) espCache[plr].HBg.Position = UDim2.new(0, (tPos.X - w / 2) - 6, 0, tPos.Y)
                             espCache[plr].HFill.Size = UDim2.new(1, 0, hpPct, 0) espCache[plr].HFill.Position = UDim2.new(0, 0, 1 - hpPct, 0)
                             espCache[plr].HFill.BackgroundColor3 = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 0), hpPct)
                             espCache[plr].HBg.Visible = true
@@ -512,6 +558,7 @@ RunService.RenderStepped:Connect(function()
                         espCache[plr].HBg.Visible = false
                     end
 
+                    -- Tracers
                     if settings.espTracers then
                         local screenBottom = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y)
                         local targetFoot = Vector2.new(bPos.X, bPos.Y)
@@ -525,6 +572,45 @@ RunService.RenderStepped:Connect(function()
                         espCache[plr].Line.Visible = true
                     else
                         espCache[plr].Line.Visible = false
+                    end
+
+                    -- Skeleton ESP em Branco
+                    if settings.espSkeleton then
+                        local parts = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+                        if hum.RigType == Enum.HumanoidRigType.R15 then
+                            parts = {"Head", "UpperTorso", "LeftHand", "RightHand", "LeftFoot", "RightFoot"}
+                        end
+                        
+                        local valid = true
+                        for _, pName in ipairs(parts) do if not char:FindFirstChild(pName) then valid = false end end
+                        
+                        if valid then
+                            local hd = camera:WorldToViewportPoint(char[parts[1]].Position)
+                            local tr = camera:WorldToViewportPoint(char[parts[2]].Position)
+                            local la = camera:WorldToViewportPoint(char[parts[3]].Position)
+                            local ra = camera:WorldToViewportPoint(char[parts[4]].Position)
+                            local ll = camera:WorldToViewportPoint(char[parts[5]].Position)
+                            local rl = camera:WorldToViewportPoint(char[parts[6]].Position)
+                            
+                            local function updateLine(lineFrame, from, to)
+                                local dist = (from - to).Magnitude
+                                lineFrame.Size = UDim2.new(0, dist, 0, 1.5)
+                                lineFrame.Position = UDim2.new(0, (from.X + to.X) / 2, 0, (from.Y + to.Y) / 2)
+                                lineFrame.Rotation = math.deg(math.atan2(to.Y - from.Y, to.X - from.X))
+                                lineFrame.BackgroundColor3 = COLORS.White
+                                lineFrame.Visible = true
+                            end
+                            
+                            updateLine(espCache[plr].Skel[1], Vector2.new(hd.X, hd.Y), Vector2.new(tr.X, tr.Y))
+                            updateLine(espCache[plr].Skel[2], Vector2.new(tr.X, tr.Y), Vector2.new(la.X, la.Y))
+                            updateLine(espCache[plr].Skel[3], Vector2.new(tr.X, tr.Y), Vector2.new(ra.X, ra.Y))
+                            updateLine(espCache[plr].Skel[4], Vector2.new(tr.X, tr.Y), Vector2.new(ll.X, ll.Y))
+                            updateLine(espCache[plr].Skel[5], Vector2.new(tr.X, tr.Y), Vector2.new(rl.X, rl.Y))
+                        else
+                            for _, line in ipairs(espCache[plr].Skel) do line.Visible = false end
+                        end
+                    else
+                        for _, line in ipairs(espCache[plr].Skel) do line.Visible = false end
                     end
                 else 
                     if espCache[plr] then clearESP(plr) end 
@@ -547,15 +633,8 @@ RunService.Stepped:Connect(function()
     if char then
         local hum = char:FindFirstChild("Humanoid")
         if hum then
-            -- Só modifica as propriedades se estiver explicitamente ativado
-            if settings.wsEnabled then 
-                hum.WalkSpeed = settings.walkSpeed 
-            end
-            
-            if settings.jpEnabled then 
-                hum.UseJumpPower = true
-                hum.JumpPower = settings.jumpPower 
-            end
+            if settings.wsEnabled then hum.WalkSpeed = settings.walkSpeed end
+            if settings.jpEnabled then hum.UseJumpPower = true hum.JumpPower = settings.jumpPower end
         end
         
         if settings.noclip then
@@ -588,10 +667,10 @@ RunService.RenderStepped:Connect(function()
             flyBG = Instance.new("BodyGyro", root) flyBG.MaxTorque = Vector3.new(1e5, 1e5, 1e5) flyBG.D = 10
         end
         local move = Vector3.new()
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += Vector3.new(0,0,-1) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then move += Vector3.new(0,0,1) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then move += Vector3.new(-1,0,0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += Vector3.new(1,0,0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += Vector3.new(0, 0, -1) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then move += Vector3.new(0, 0, 1) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then move += Vector3.new(-1, 0, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += Vector3.new(1, 0, 0) end
         
         local vel = camera.CFrame:VectorToWorldSpace(move) * settings.flySpeed
         if UserInputService:IsKeyDown(Enum.KeyCode.Space) then vel += Vector3.new(0, settings.flySpeed, 0)
@@ -654,10 +733,7 @@ local function toggleMenu()
         local t = TweenService:Create(Canvas, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {GroupTransparency = 1})
         local sizeT = TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In), {Size = UDim2.new(0, 500, 0, 0)})
         
-        t:Play()
-        sizeT:Play()
-        
-        sizeT.Completed:Wait()
+        t:Play() sizeT:Play() sizeT.Completed:Wait()
         MainFrame.Visible = false
         menuActive = false
     else
@@ -667,19 +743,14 @@ local function toggleMenu()
         local t = TweenService:Create(Canvas, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {GroupTransparency = 0})
         local sizeT = TweenService:Create(MainFrame, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 500, 0, 350)})
         
-        sizeT:Play()
-        t:Play()
-        
-        sizeT.Completed:Wait()
+        sizeT:Play() t:Play() sizeT.Completed:Wait()
         menuActive = true
     end
     isTweening = false
 end
 
 UserInputService.InputBegan:Connect(function(i, p) 
-    if not p and i.KeyCode == Enum.KeyCode.G then 
-        toggleMenu() 
-    end 
+    if not p and i.KeyCode == Enum.KeyCode.G then toggleMenu() end 
 end)
 
 selectTab("Main")
